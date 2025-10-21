@@ -20,12 +20,13 @@ jobs:
 
     - name: Build and push Docker image
       run: |
+        OWNER_NAME=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
         REPO_NAME=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
-        IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$REPO_NAME:${{ github.sha }}
+        IMAGE_ID=ghcr.io/$OWNER_NAME/$REPO_NAME:${{ github.sha }}
         echo "Building and pushing image: $IMAGE_ID"
         docker build -t $IMAGE_ID .
         docker push $IMAGE_ID
-    
+        
     - name: Trigger Jenkins Deployment
       run: |
         IMAGE_TAG_URLENCODED=$(echo -n "ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ github.sha }}" | jq -sRr @uri)
