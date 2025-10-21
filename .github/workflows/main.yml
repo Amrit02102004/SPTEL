@@ -1,0 +1,32 @@
+name: CI - Build and Push to GHCR
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push Docker image
+      run: |
+        IMAGE_ID=ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ github.sha }}
+        docker build -t $IMAGE_ID .
+        docker push $IMAGE_ID
+    
+    - name: Trigger Jenkins Deployment
+      run: |
+        IMAGE_TAG_URLENCODED=$(echo -n "ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ github.sha }}" | jq -sRr @uri)
+        curl -X POST ${{ secrets.JENKINS_URL }}/job/deploy-app/buildWithParameters \
+          --user ${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_TOKEN }} \
+          --data-urlencode "IMAGE_TAG=${IMAGE_TAG_URLENCODED}"

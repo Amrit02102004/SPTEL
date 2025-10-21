@@ -8,6 +8,7 @@
 *.so
 *.dylib
 
+jenkins_home/
 # Test binary, built with `go test -c`
 *.test
 
