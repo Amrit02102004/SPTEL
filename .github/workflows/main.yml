@@ -1,4 +1,4 @@
-name: CI - Build and Push to GHCR
+name: CI - Build, Test, and Push to GHCR
 
 on:
   push:
@@ -12,28 +12,44 @@ jobs:
       contents: read
       packages: write
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v2
-      with:
-        registry: ghcr.io
-        username: ${{ github.repository_owner }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
 
-    - name: Build and push Docker image
-      run: |
-        OWNER_NAME=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-        REPO_NAME=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
-        IMAGE_ID=ghcr.io/$OWNER_NAME/$REPO_NAME:${{ github.sha }}
-        echo "Building and pushing image: $IMAGE_ID"
-        docker build -t $IMAGE_ID .
-        docker push $IMAGE_ID
-        
-    - name: Trigger Jenkins Deployment
-      run: |
-        IMAGE_TAG_URLENCODED=$(echo -n "ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}:${{ github.sha }}" | jq -sRr @uri)
-        curl -X POST ${{ secrets.JENKINS_URL }}/job/deploy-app/buildWithParameters \
-          --user ${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_TOKEN }} \
-          --data-urlencode "IMAGE_TAG=${IMAGE_TAG_URLENCODED}"
+      - name: Run unit tests
+        run: go test -v ./...
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        run: |
+          OWNER_NAME=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          REPO_NAME=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_ID=ghcr.io/$OWNER_NAME/$REPO_NAME:${{ github.sha }}
+          echo "Building and pushing image: $IMAGE_ID"
+          docker build -t $IMAGE_ID .
+          docker push $IMAGE_ID
+            
+      - name: Trigger Jenkins Deployment
+        run: |
+          # Use the corrected, lowercase owner and repo names to build the tag
+          OWNER_NAME_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          REPO_NAME_LOWER=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
+          
+          # Construct the full image tag that was actually pushed
+          FULL_IMAGE_TAG="ghcr.io/$OWNER_NAME_LOWER/$REPO_NAME_LOWER:${{ github.sha }}"
+          
+          # URL-encode the correct tag and send it to Jenkins
+          IMAGE_TAG_URLENCODED=$(echo -n "$FULL_IMAGE_TAG" | jq -sRr @uri)
+          curl -X POST ${{ secrets.JENKINS_URL }}/job/deploy-app/buildWithParameters \
+            --user ${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_TOKEN }} \
+            --data-urlencode "IMAGE_TAG=${IMAGE_TAG_URLENCODED}"
