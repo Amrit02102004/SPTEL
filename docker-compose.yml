@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   jenkins:
     image: jenkins/jenkins:lts
@@ -13,3 +12,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - jenkins-net
+
+# Add this block to the bottom of the file
+networks:
+  jenkins-net:
+    driver: bridge
